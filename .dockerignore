@@ -1,0 +1,9 @@
+node_modules
+.git
+.vscode
+.claude
+dist
+*.tsbuildinfo
+*.pdf
+Dockerfile
+compose.yaml

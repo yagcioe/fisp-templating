@@ -1,0 +1,11 @@
+{
+  // Emits runnable JS into dist/ (used by `npm run build` and the Docker build stage).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    // Source imports use .ts/.tsx extensions; rewrite them to .js on emit.
+    "rewriteRelativeImportExtensions": true
+  }
+}

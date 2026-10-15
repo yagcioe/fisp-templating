@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    image: fisp-templating
+    ports:
+      # Host port is configurable, e.g. HOST_PORT=3300 docker compose up
+      - "${HOST_PORT:-3000}:3000"
+    # tini as PID 1 reaps Chromium's child processes.
+    init: true
+    restart: unless-stopped

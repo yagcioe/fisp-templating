@@ -1,0 +1,33 @@
+import type { InvoiceData } from "./types.ts";
+
+/** Valid sample invoice: used by the benchmark and as the OpenAPI / Swagger UI request example. */
+export const sampleData: InvoiceData = {
+  number: "RE-2026-001",
+  issueDate: "2026-10-15",
+  currency: "EUR",
+  buyerReference: "PO-4711",
+  deliveryDate: "2026-09-30",
+  dueDate: "2026-10-29",
+  paymentTerms: "Payable within 14 days without deduction.",
+  seller: {
+    name: "Muster Software GmbH",
+    address: { line1: "Hauptstraße 1", postcode: "10115", city: "Berlin", countryCode: "DE" },
+    vatId: "DE123456789",
+    taxNumber: "30/123/45678",
+    email: "billing@muster-software.example",
+    contact: { name: "Max Mustermann", phone: "+49 30 1234567", email: "max@muster-software.example" },
+  },
+  buyer: {
+    name: "Jane Doe Consulting",
+    address: { line1: "Marienplatz 8", postcode: "80331", city: "München", countryCode: "DE" },
+    email: "jane@example.com",
+  },
+  payment: { meansCode: "58", iban: "DE02120300000000202051", bic: "BYLADEM1001", accountName: "Muster Software GmbH" },
+  lines: [
+    { description: "Consulting", quantity: 10, unitCode: "HUR", unitPrice: 120, vatCategory: "S", vatRate: 19 },
+    { description: "Hosting <monthly>", quantity: 1, unitCode: "MON", unitPrice: 49.9, vatCategory: "S", vatRate: 19 },
+    { description: "Support & Maintenance", quantity: 3, unitCode: "HUR", unitPrice: 80, vatCategory: "S", vatRate: 19 },
+    { description: "Handbook (print)", quantity: 2, unitCode: "C62", unitPrice: 39.9, vatCategory: "S", vatRate: 7 },
+  ],
+  notes: "Thank you for your business!",
+};
