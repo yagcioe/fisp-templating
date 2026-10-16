@@ -121,10 +121,16 @@ export const ErrorResponseSchema = z
   })
   .meta({ id: "ErrorResponse" });
 
+/** Output of an engine: ZUGFeRD PDF or plain HTML. */
+export const OutputFormatSchema = z
+  .enum(["pdf", "html"])
+  .meta({ id: "OutputFormat", description: "`pdf`: ZUGFeRD / Factur-X PDF/A-3b, `html`: plain HTML without e-invoice data" });
+
 /** Options of POST /benchmark; the engine list is narrowed to the registered engines in app.ts. */
 export const BenchmarkRequestSchema = z.object({
-  iterations: z.number().int().min(1).max(1000).default(20).describe("Measured renders per engine"),
-  warmup: z.number().int().min(0).max(100).default(10).describe("Unmeasured renders per engine before measuring"),
+  iterations: z.number().int().min(1).max(1000).default(20).describe("Measured renders per engine and format"),
+  warmup: z.number().int().min(0).max(100).default(10).describe("Unmeasured renders per engine and format before measuring"),
+  formats: z.array(OutputFormatSchema).min(1).default(["pdf", "html"]).describe("Output formats to benchmark; default: both"),
   engines: z.array(z.string().min(1)).min(1).optional().describe("Engines to benchmark; default: all"),
   invoice: InvoiceDataSchema.optional().describe("Invoice to render; default: the sample invoice"),
 });
@@ -132,6 +138,7 @@ export const BenchmarkRequestSchema = z.object({
 export const BenchmarkEngineResultSchema = z
   .object({
     engine: z.string(),
+    format: OutputFormatSchema,
     meanMs: z.number(),
     p50Ms: z.number(),
     p95Ms: z.number(),

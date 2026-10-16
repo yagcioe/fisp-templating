@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFRef, PDFString } from "pdf-lib";
+import { inflateSync } from "node:zlib";
+import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFRawStream, PDFRef, PDFString } from "pdf-lib";
 import { escapeXml } from "./xml.ts";
 
 export const FACTURX_FILENAME = "factur-x.xml";
@@ -26,6 +27,40 @@ const fxProperty = (name: string, description: string) => `
                 <pdfaProperty:description>${description}</pdfaProperty:description>
               </rdf:li>`;
 
+/** The Factur-X / ZUGFeRD XMP properties. */
+const fxDescription = (conformanceLevel: string) => `
+    <rdf:Description rdf:about="" xmlns:fx="${FX_NS}">
+      <fx:DocumentType>INVOICE</fx:DocumentType>
+      <fx:DocumentFileName>${FACTURX_FILENAME}</fx:DocumentFileName>
+      <fx:Version>1.0</fx:Version>
+      <fx:ConformanceLevel>${escapeXml(conformanceLevel)}</fx:ConformanceLevel>
+    </rdf:Description>`;
+
+/** PDF/A extension-schema entry declaring the fx properties (one item of pdfaExtension:schemas). */
+const fxSchema = `
+          <rdf:li rdf:parseType="Resource">
+            <pdfaSchema:schema>Factur-X PDFA Extension Schema</pdfaSchema:schema>
+            <pdfaSchema:namespaceURI>${FX_NS}</pdfaSchema:namespaceURI>
+            <pdfaSchema:prefix>fx</pdfaSchema:prefix>
+            <pdfaSchema:property>
+              <rdf:Seq>${fxProperty("DocumentFileName", "The name of the embedded XML document")}${fxProperty("DocumentType", "The type of the hybrid document in capital letters, e.g. INVOICE or ORDER")}${fxProperty("Version", "The actual version of the standard applying to the embedded XML document")}${fxProperty("ConformanceLevel", "The conformance level of the embedded XML document")}
+              </rdf:Seq>
+            </pdfaSchema:property>
+          </rdf:li>`;
+
+/** A Description holding pdfaExtension:schemas with the given schema entries. */
+const extensionSchemas = (entries: string) => `
+    <rdf:Description rdf:about=""
+        xmlns:pdfaExtension="http://www.aiim.org/pdfa/ns/extension/"
+        xmlns:pdfaSchema="http://www.aiim.org/pdfa/ns/schema#"
+        xmlns:pdfaProperty="http://www.aiim.org/pdfa/ns/property#">
+      <pdfaExtension:schemas>
+        <rdf:Bag>${entries}
+        </rdf:Bag>
+      </pdfaExtension:schemas>
+    </rdf:Description>`;
+
+/** Complete XMP packet for PDFs that have none worth keeping (Chromium output). */
 function xmp(meta: FacturXMetadata, producer: string, date: string): string {
   return `<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
@@ -47,34 +82,23 @@ function xmp(meta: FacturXMetadata, producer: string, date: string): string {
       <xmp:CreateDate>${date}</xmp:CreateDate>
       <xmp:ModifyDate>${date}</xmp:ModifyDate>
       <xmp:MetadataDate>${date}</xmp:MetadataDate>
-    </rdf:Description>
-    <rdf:Description rdf:about="" xmlns:fx="${FX_NS}">
-      <fx:DocumentType>INVOICE</fx:DocumentType>
-      <fx:DocumentFileName>${FACTURX_FILENAME}</fx:DocumentFileName>
-      <fx:Version>1.0</fx:Version>
-      <fx:ConformanceLevel>${escapeXml(meta.conformanceLevel)}</fx:ConformanceLevel>
-    </rdf:Description>
-    <rdf:Description rdf:about=""
-        xmlns:pdfaExtension="http://www.aiim.org/pdfa/ns/extension/"
-        xmlns:pdfaSchema="http://www.aiim.org/pdfa/ns/schema#"
-        xmlns:pdfaProperty="http://www.aiim.org/pdfa/ns/property#">
-      <pdfaExtension:schemas>
-        <rdf:Bag>
-          <rdf:li rdf:parseType="Resource">
-            <pdfaSchema:schema>Factur-X PDFA Extension Schema</pdfaSchema:schema>
-            <pdfaSchema:namespaceURI>${FX_NS}</pdfaSchema:namespaceURI>
-            <pdfaSchema:prefix>fx</pdfaSchema:prefix>
-            <pdfaSchema:property>
-              <rdf:Seq>${fxProperty("DocumentFileName", "The name of the embedded XML document")}${fxProperty("DocumentType", "The type of the hybrid document in capital letters, e.g. INVOICE or ORDER")}${fxProperty("Version", "The actual version of the standard applying to the embedded XML document")}${fxProperty("ConformanceLevel", "The conformance level of the embedded XML document")}
-              </rdf:Seq>
-            </pdfaSchema:property>
-          </rdf:li>
-        </rdf:Bag>
-      </pdfaExtension:schemas>
-    </rdf:Description>
+    </rdf:Description>${fxDescription(meta.conformanceLevel)}${extensionSchemas(fxSchema)}
   </rdf:RDF>
 </x:xmpmeta>
 <?xpacket end="w"?>`;
+}
+
+/**
+ * Adds the fx properties to an existing XMP packet and leaves everything else
+ * as is. The fx schema entry joins an existing pdfaExtension:schemas bag (a
+ * second schemas property would be invalid RDF) or gets one of its own.
+ */
+function injectFacturX(packet: string, conformanceLevel: string): string {
+  const bag = /<pdfaExtension:schemas>\s*<rdf:Bag>/;
+  const withSchema = bag.test(packet)
+    ? packet.replace(bag, (open) => open + fxSchema)
+    : packet.replace("</rdf:RDF>", extensionSchemas(fxSchema) + "</rdf:RDF>");
+  return withSchema.replace("</rdf:RDF>", fxDescription(conformanceLevel) + "</rdf:RDF>");
 }
 
 /** Returns the filespec of an existing factur-x.xml attachment (normalizing its name), if any. */
@@ -124,15 +148,18 @@ function attachXml(doc: PDFDocument, xml: string, now: Date): PDFRef {
 }
 
 /**
- * Turns a plain PDF from any template engine into a PDF/A-3b Factur-X /
- * ZUGFeRD hybrid. Neither typst.ts nor Chromium can target PDF/A-3, so this:
- *  - embeds factur-x.xml (or reuses the attachment typst's `pdf.attach` made),
- *    marks it /AFRelationship /Alternative and lists it in the catalog's /AF
- *  - adds an sRGB output intent with the bundled compact sRGB v4 ICC profile
- *    (sRGB-v4.icc, the CC0 profile typst itself embeds for PDF/A)
+ * Turns a plain PDF (Chromium cannot target PDF/A-3) into a PDF/A-3b
+ * Factur-X / ZUGFeRD hybrid. Engines that already produce PDF/A-3b with the
+ * XML attached use addFacturXMetadata() instead. This adds what is missing
+ * and replaces the metadata:
+ *  - embeds factur-x.xml unless typst's `pdf.attach` already did, and makes sure
+ *    it is marked /AFRelationship /Alternative and listed in the catalog's /AF
+ *  - adds an sRGB output intent (bundled compact sRGB v4 ICC profile, the CC0
+ *    profile typst itself embeds for PDF/A) unless one exists
  *  - ensures a trailer /ID
  *  - replaces the XMP packet with PDF/A + Factur-X extension-schema metadata
- *    and keeps the Info dictionary consistent with it
+ *    and the Info dictionary with one consistent with it; the replaced objects
+ *    are deleted, since pdf-lib would otherwise keep them as orphans
  */
 export async function finalizeFacturX(pdf: Uint8Array, xml: string, meta: FacturXMetadata): Promise<Uint8Array> {
   const doc = await PDFDocument.load(pdf, { updateMetadata: false });
@@ -143,28 +170,35 @@ export async function finalizeFacturX(pdf: Uint8Array, xml: string, meta: Factur
   const filespec = context.lookup(filespecRef, PDFDict);
   filespec.set(PDFName.of("F"), PDFString.of(FACTURX_FILENAME));
   filespec.set(PDFName.of("UF"), PDFHexString.fromText(FACTURX_FILENAME));
-  filespec.set(PDFName.of("AFRelationship"), PDFName.of("Alternative"));
-  catalog.set(PDFName.of("AF"), context.obj([filespecRef]));
+  if (!filespec.has(PDFName.of("AFRelationship"))) filespec.set(PDFName.of("AFRelationship"), PDFName.of("Alternative"));
+  const af = catalog.lookupMaybe(PDFName.of("AF"), PDFArray);
+  if (!af?.asArray().some((ref) => ref === filespecRef)) catalog.set(PDFName.of("AF"), context.obj([filespecRef]));
 
-  catalog.set(
-    PDFName.of("OutputIntents"),
-    context.obj([
-      context.obj({
-        Type: "OutputIntent",
-        S: "GTS_PDFA1",
-        OutputConditionIdentifier: PDFString.of("sRGB IEC61966-2.1"),
-        Info: PDFString.of("sRGB IEC61966-2.1"),
-        DestOutputProfile: context.register(context.flateStream(srgbProfile, { N: 3 })),
-      }),
-    ]),
-  );
+  if (!catalog.has(PDFName.of("OutputIntents"))) {
+    catalog.set(
+      PDFName.of("OutputIntents"),
+      context.obj([
+        context.obj({
+          Type: "OutputIntent",
+          S: "GTS_PDFA1",
+          OutputConditionIdentifier: PDFString.of("sRGB IEC61966-2.1"),
+          Info: PDFString.of("sRGB IEC61966-2.1"),
+          DestOutputProfile: context.register(context.flateStream(srgbProfile, { N: 3 })),
+        }),
+      ]),
+    );
+  }
 
   if (!context.trailerInfo.ID) {
     const id = PDFHexString.of(randomBytes(16).toString("hex"));
     context.trailerInfo.ID = context.obj([id, id]);
   }
 
+  // Drops a replaced object (if it was indirect) so it doesn't stay in the file.
+  const deleteIfRef = (obj: unknown) => obj instanceof PDFRef && context.delete(obj);
+
   const producer = `${meta.creator} + pdf-lib`;
+  deleteIfRef(context.trailerInfo.Info);
   context.trailerInfo.Info = context.register(context.obj({}));
   doc.setTitle(meta.title);
   doc.setAuthor(meta.author);
@@ -175,7 +209,34 @@ export async function finalizeFacturX(pdf: Uint8Array, xml: string, meta: Factur
   doc.setModificationDate(now);
 
   const packet = new TextEncoder().encode(xmp(meta, producer, now.toISOString().replace(".000Z", "Z")));
+  deleteIfRef(catalog.get(PDFName.of("Metadata")));
   catalog.set(PDFName.of("Metadata"), context.register(context.stream(packet, { Type: "Metadata", Subtype: "XML" })));
 
-  return doc.save({ useObjectStreams: false });
+  return doc.save({ useObjectStreams: true });
+}
+
+/**
+ * For PDFs that are already PDF/A-3b with factur-x.xml attached (typst with
+ * `pdfStandards: ["a3b"]` and `pdf.attach`): adds only the Factur-X XMP
+ * properties, which typst cannot write. Title, author, dates, Info dictionary,
+ * output intent and attachment stay exactly as the template produced them.
+ */
+export async function addFacturXMetadata(pdf: Uint8Array, conformanceLevel: string): Promise<Uint8Array> {
+  const doc = await PDFDocument.load(pdf, { updateMetadata: false });
+  const { context, catalog } = doc;
+  if (!findAttachment(doc)) throw new Error(`PDF has no ${FACTURX_FILENAME} attachment`);
+
+  const metadataRef = catalog.get(PDFName.of("Metadata"));
+  const metadata = metadataRef instanceof PDFRef ? context.lookup(metadataRef) : undefined;
+  if (!(metadataRef instanceof PDFRef) || !(metadata instanceof PDFRawStream)) {
+    throw new Error("PDF has no XMP metadata stream");
+  }
+  const packet = new TextDecoder().decode(
+    metadata.dict.has(PDFName.of("Filter")) ? inflateSync(metadata.contents) : metadata.contents,
+  );
+
+  const updated = new TextEncoder().encode(injectFacturX(packet, conformanceLevel));
+  context.delete(metadataRef);
+  catalog.set(PDFName.of("Metadata"), context.register(context.stream(updated, { Type: "Metadata", Subtype: "XML" })));
+  return doc.save({ useObjectStreams: true });
 }

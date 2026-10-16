@@ -5,7 +5,8 @@ export interface TemplateEngine {
   readonly name: string;
   /** Optional one-time warm-up (e.g. loading WASM, launching a browser). */
   init?(): Promise<void>;
-  render(data: InvoiceData): Promise<Uint8Array>;
+  render(data: InvoiceData, format: "pdf"): Promise<Uint8Array>;
+  render(data: InvoiceData, format: "html"): Promise<string>;
   /** Optional cleanup (e.g. closing a browser). */
   close?(): Promise<void>;
 }

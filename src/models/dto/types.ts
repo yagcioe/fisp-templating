@@ -8,6 +8,7 @@ import type {
   ContactSchema,
   InvoiceDataSchema,
   InvoiceLineSchema,
+  OutputFormatSchema,
   PartySchema,
   PaymentInfoSchema,
   VatBreakdownSchema,
@@ -24,5 +25,6 @@ export type InvoiceData = z.infer<typeof InvoiceDataSchema>;
 export type CalculatedLine = z.infer<typeof CalculatedLineSchema>;
 export type VatBreakdown = z.infer<typeof VatBreakdownSchema>;
 export type CalculatedInvoice = z.infer<typeof CalculatedInvoiceSchema>;
+export type OutputFormat = z.infer<typeof OutputFormatSchema>;
 export type BenchmarkEngineResult = z.infer<typeof BenchmarkEngineResultSchema>;
 export type BenchmarkResult = z.infer<typeof BenchmarkResultSchema>;

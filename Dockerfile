@@ -29,8 +29,8 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
-# Fonts for the Kita/Chromium PDFs ("serif" → Liberation Serif). typst
-# downloads its own fonts from jsDelivr at startup (needs network access).
+# Fonts for the Kita/Chromium PDFs ("serif" → Liberation Serif). typst uses
+# its bundled fonts from @typst-wasm/fonts.
 # unzip: puppeteer needs it to extract the Chrome download.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends fonts-liberation fonts-dejavu-core unzip \

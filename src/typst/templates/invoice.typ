@@ -26,7 +26,17 @@
   [#a.postcode #a.city \ #a.countryCode]
 }
 
-#set document(title: inv.title, author: inv.seller.name)
+// Document metadata: typst writes it into the PDF Info dictionary and XMP as
+// is (only the Factur-X XMP fields are added afterwards). PDF/A-3 requires a
+// date when files are attached and typst in WASM has no clock, so the issue
+// date is used.
+#let (year, month, day) = inv.issueDate.split("-").map(int)
+#set document(
+  title: inv.title,
+  author: inv.seller.name,
+  description: "Invoice " + inv.number + " for " + inv.buyer.name,
+  date: datetime(year: year, month: month, day: day),
+)
 #set text(font: "Libertinus Serif", size: 10pt, lang: "en")
 #set page(
   paper: "a4",

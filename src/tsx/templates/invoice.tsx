@@ -1,7 +1,4 @@
-import puppeteer, { type Browser } from "puppeteer";
-import { calculateInvoice, type TemplateEngine } from "../core.ts";
-import type { CalculatedInvoice, Party } from "../models/dto/types.ts";
-import { renderZugferdPdf } from "../zugferd/index.ts";
+import type { CalculatedInvoice, Party } from "../../models/dto/types.ts";
 
 const money = (v: number, currency: string) => `${v.toFixed(2)} ${currency}`;
 const pct = (v: number) => `${v} %`;
@@ -203,39 +200,8 @@ function Invoice({ inv }: { inv: CalculatedInvoice }) {
   );
 }
 
-/**
- * Renders the invoice as HTML with Kita and prints it to PDF with headless
- * Chromium (Puppeteer); the HTML is an internal intermediate only. The result
- * is the same ZUGFeRD / Factur-X PDF/A-3b as the typst engine produces.
- */
-export function createKitaEngine(): TemplateEngine {
-  let browser: Promise<Browser> | undefined;
-  // PUPPETEER_ARGS passes extra Chromium flags, e.g. "--no-sandbox" in containers.
-  const args = process.env.PUPPETEER_ARGS?.split(" ").filter(Boolean);
-  const getBrowser = () => (browser ??= puppeteer.launch({ args }));
+export const toHtml = (invoice: CalculatedInvoice) =>
+  // No async components are used, so the element is always a plain string.
+  "<!doctype html>" + ((<Invoice inv={invoice} />) as string);
 
-  return {
-    name: "kitajs",
-    async init() {
-      await getBrowser();
-    },
-    render(data) {
-      const invoice = calculateInvoice(data);
-      return renderZugferdPdf(invoice, "Kita HTML + Chromium", async () => {
-        // No async components are used, so the element is always a plain string.
-        const html = "<!doctype html>" + ((<Invoice inv={invoice} />) as string);
-        const page = await (await getBrowser()).newPage();
-        try {
-          await page.setContent(html, { waitUntil: "load" });
-          return await page.pdf({ preferCSSPageSize: true, printBackground: true });
-        } finally {
-          await page.close();
-        }
-      });
-    },
-    async close() {
-      await (await browser)?.close();
-      browser = undefined;
-    },
-  };
-}
+

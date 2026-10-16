@@ -16,6 +16,7 @@ import {
   BenchmarkResultSchema,
   ErrorResponseSchema,
   InvoiceDataSchema,
+  OutputFormatSchema,
 } from "./models/dto/schemas.ts";
 
 type SpecShape = {
@@ -88,15 +89,20 @@ export async function buildApp(engines: Map<string, TemplateEngine>, opts: Fasti
       schema: {
         summary: "Render an invoice",
         description:
-          "Renders the invoice as ZUGFeRD / Factur-X (EN 16931) PDF/A-3b with the chosen engine: " +
-          "`kitajs` (Kita HTML printed by headless Chromium) or `typst`. The `x-render-time-ms` response header " +
-          "carries the full render time (calculation, XML, layout, PDF/A finishing).",
+          "Renders the invoice with the chosen engine: `kitajs` (Kita HTML, printed by headless Chromium for PDF) " +
+          "or `typst`. `format=pdf` (default) returns a ZUGFeRD / Factur-X (EN 16931) PDF/A-3b, `format=html` " +
+          "the engine's HTML (no e-invoice data). The `x-render-time-ms` response header carries the full " +
+          "render time (calculation, XML, layout, PDF/A finishing).",
         params: z.object({ engine: z.enum(engineNames).meta({ examples: [engineNames.at(-1)!] }) }),
+        querystring: z.object({ format: OutputFormatSchema.default("pdf") }),
         body: InvoiceDataSchema,
         response: {
           200: {
-            description: "The ZUGFeRD PDF, sent as attachment `<invoice number>-<engine>.pdf`.",
-            content: { "application/pdf": { schema: z.string().meta({ format: "binary" }) } },
+            description: "PDF sent as attachment `<invoice number>-<engine>.pdf`, or HTML.",
+            content: {
+              "application/pdf": { schema: z.string().meta({ format: "binary" }) },
+              "text/html": { schema: z.string() },
+            },
           },
           400: ErrorResponseSchema.describe("Schema validation failed or a business rule (BR-*) was violated."),
         },
@@ -105,7 +111,12 @@ export async function buildApp(engines: Map<string, TemplateEngine>, opts: Fasti
     async (req, reply) => {
       const engine = engines.get(req.params.engine)!;
       const start = performance.now();
-      const pdf = await engine.render(req.body);
+      if (req.query.format === "html") {
+        const html = await engine.render(req.body, "html");
+        reply.header("x-render-time-ms", (performance.now() - start).toFixed(3));
+        return reply.type("text/html; charset=utf-8").send(html);
+      }
+      const pdf = await engine.render(req.body, "pdf");
       reply.header("x-render-time-ms", (performance.now() - start).toFixed(3));
 
       // Sent as attachment: clients get a proper filename, and Swagger UI only
@@ -130,7 +141,8 @@ export async function buildApp(engines: Map<string, TemplateEngine>, opts: Fasti
       schema: {
         summary: "Run the render benchmark",
         description:
-          "Renders the invoice `warmup + iterations` times per engine (sequentially) and reports timings. " +
+          "Renders the invoice `warmup + iterations` times per engine and format (sequentially) and reports " +
+          "timings, one result per engine and format. " +
           "Runs on the live engines, so concurrent render traffic affects the numbers. " +
           "Kita (Chromium) is several times slower than typst, so keep `iterations` moderate.",
         body: BenchmarkRequestSchema.extend({
@@ -149,10 +161,10 @@ export async function buildApp(engines: Map<string, TemplateEngine>, opts: Fasti
       }
       benchmarkRunning = true;
       try {
-        const { iterations, warmup, engines: names = engineNames, invoice } = req.body;
+        const { iterations, warmup, formats, engines: names = engineNames, invoice } = req.body;
         return await runBenchmark(
           names.map((name) => engines.get(name)!),
-          { iterations, warmup, data: invoice },
+          { iterations, warmup, formats, data: invoice },
         );
       } finally {
         benchmarkRunning = false;
