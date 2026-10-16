@@ -78,6 +78,56 @@
   Beide Probleme sind ähnlich: *Ein Template wird mit Daten befüllt.*
 ])
 
+== Das Problem - Rechnungen
+
+*Eine Rechnung -- zwei Ausgabeformate, gleiche Daten.*
+
+#v(0.4em)
+#grid(
+  columns: (1fr, 1fr),
+  gutter: 1.5em,
+  block(fill: soft, inset: 14pt, radius: 4pt, width: 100%)[
+    *HTML*
+    - Rechnung als *E-Mail*
+    - Web-Ansicht, z. B. im Online-Banking-Postfach
+  ],
+  block(fill: rgb("#fde3e6"), inset: 14pt, radius: 4pt, width: 100%)[
+    *PDF inkl. ZUGFeRD*
+    - Sichtbare Rechnung für Menschen
+    - Eingebettetes XML für die Buchhaltung
+    - Archivierbar (PDF/A-3b)
+  ],
+)
+
+== Was ist ZUGFeRD?
+
+#grid(
+  columns: (1.35fr, 1fr),
+  gutter: 1.5em,
+  align: horizon,
+  [
+    #set text(size: 16pt)
+    - *Hybride E-Rechnung:* ein PDF für Menschen, mit eingebettetem XML für Maschinen
+
+    - *Pflicht im B2B:* Empfang seit 2025, Versand ab 2027 / 2028
+  ],
+  [
+    #set text(size: 14pt)
+    #block(stroke: 1pt + accent, inset: 10pt, radius: 4pt, width: 100%)[
+      *PDF/A-3b* #h(1fr) #text(size: 0.75em)[archivierbar]
+      #v(0.2em)
+      #block(fill: soft, inset: 8pt, radius: 3pt, width: 100%)[
+        Sichtbare Rechnung \ #text(size: 0.75em)[Layout aus der Templating Engine]
+      ]
+      #block(fill: rgb("#fde3e6"), inset: 8pt, radius: 3pt, width: 100%)[
+        #sym.plus `factur-x.xml` (Anhang) \ #text(size: 0.75em)[strukturierte Daten zum automatischen Verbuchen]
+      ]
+    ]
+  ],
+)
+
+
+
 == Blockdiagramm
 
 // Daten + Template → Engine → Format → Consumer (eine Zeile pro Zielformat)
@@ -129,18 +179,18 @@
     ),
   )]
 
-== Worauf kommt es an?
+== Worauf kommt es technisch an?
 
 #grid(
   columns: (1fr, 1fr, 1fr),
   row-gutter: 0.9em,
   column-gutter: 1em,
   [*Type Safety* \ #text(size: 0.75em)[Fehler zur Compile-Zeit]],
-  [*Flexibility* \ #text(size: 0.75em)[Komponenten, Layouts, Logik in Templates]],
+  [*Flexibility* \ #text(size: 0.75em)[Komponenten, Layouts, Logik]],
   [*Efficiency* \ #text(size: 0.75em)[Latenz, Durchsatz]],
 
-  [*Lesen & Schreiben* \ #text(size: 0.75em)[Lernkurve, Tooling]],
   [*Ecosystem* \ #text(size: 0.75em)[Pakete, Community]],
+  [*Lesen & Schreiben* \ #text(size: 0.75em)[Lernkurve, Tooling]],
   [*Debugging* \ #text(size: 0.75em)[Fehlersuche]],
 )
 
@@ -161,14 +211,14 @@
   align: top,
   [
     *Problem klassischer Engines:* \
-    Templates sind Strings – der Compiler sieht sie nicht.
+    bieten kaum bis keine Typsicherheit.
     ```hbs
     <p>Hallo {{custmer.name}},</p>
     ```
   ],
   [
     *Typsichere Alternativen*
-    - TSX mit `@kitajs/html`
+    - TSX mit `@kitajs/html` + Chrome
     - typst
   ],
 )
@@ -211,7 +261,7 @@
   )
 ]
 \
-Mit der Templating Engine kann man sowohl HTML und PDFs generieren
+Mit diser Templating Engine kann man sowohl HTML und PDFs generieren
 
 == typst
 
@@ -264,59 +314,24 @@ Mit der Templating Engine kann man sowohl HTML und PDFs generieren
       [*Ecosystem*],
       [*Debugging*],
     ),
-    [*Interpolierte Strings*], yes[Ja], meh[Mittel], yes[Schnell\*], yes[Gut], meh[Mittel], [–], meh[Mittel],
+    [*Interpolierte Strings*], yes[Ja], meh[Mittel], yes[Schnell\*], yes[Gut], meh[Mittel], [–], yes[Gut],
     [*Klassisch* \ #text(size: 0.8em)[Handlebars, EJS, …]], no[Nein], [--], [--], [--], [--], [--], [--],
     [*TSX* \ #text(size: 0.8em)[`@kitajs`]],
     yes[Ja],
     yes[Gut],
     yes[Schnell\*],
-    yes[volles JS],
+    yes[Gut],
     yes[wie React],
     yes[npm (3,1 Mio.)],
     yes[Gut],
 
-    [*typst*],
-    yes[Ja],
-    yes[Funktionen],
-    yes[Sehr Schnell],
-    yes[gut],
-    meh[neue Sprache],
-    meh[Universe (800+ Pakete)],
-    meh[Mittel],
+    [*typst*], yes[Ja], yes[Gut], yes[Schnell\*], yes[Gut], meh[neue Sprache], meh[Universe (800+)], meh[Mittel],
   )
   #text(size: 11pt)[\* Ausführungsgeschwindigkeit hängt vom Output Format (PDF / HTML) ab]
 ]
 
 // ---------------------------------------------------------------------------
 = Proof of Concept: `HTML Text & ZUGFeRD-Rechnung`
-== Was ist ZUGFeRD?
-
-#grid(
-  columns: (1.35fr, 1fr),
-  gutter: 1.5em,
-  align: horizon,
-  [
-    #set text(size: 16pt)
-    - *Hybride E-Rechnung:* ein PDF für Menschen, mit eingebettetem XML für Maschinen
-    - Deutscher Standard, technisch identisch mit dem französischen *Factur-X*
-    - XML im Format *UN/CEFACT CII*, Inhalt nach europäischer Norm *EN 16931*
-    - *Pflicht im B2B:* Empfang seit 2025, Versand ab 2027 / 2028
-  ],
-  [
-    #set text(size: 14pt)
-    #block(stroke: 1pt + accent, inset: 10pt, radius: 4pt, width: 100%)[
-      *PDF/A-3b* #h(1fr) #text(size: 0.75em)[archivierbar]
-      #v(0.2em)
-      #block(fill: soft, inset: 8pt, radius: 3pt, width: 100%)[
-        Sichtbare Rechnung \ #text(size: 0.75em)[Layout aus der Templating Engine]
-      ]
-      #block(fill: rgb("#fde3e6"), inset: 8pt, radius: 3pt, width: 100%)[
-        #sym.plus `factur-x.xml` (Anhang) \ #text(size: 0.75em)[strukturierte Daten zum automatischen Verbuchen]
-      ]
-    ]
-  ],
-)
-
 == Die Idee
 
 *Eine ZUGFeRD-Rechnung (PDF/A-3b, EN 16931) – zwei Engines, gleiche Daten.*
@@ -413,7 +428,6 @@ Mit der Templating Engine kann man sowohl HTML und PDFs generieren
   [
     - Syntax wie React, aber *nur String-Konkatenation*
     - Komponenten: `<Address party={…} />`
-    - `safe` escaped Nutzereingaben (XSS)
     - Funktionen erzeugen den HTML-String #sym.arrow fertig für *E-Mails*
     - Für *PDFs*: Chromium druckt das HTML, PDF/A-3b + XML Header kommen danach
   ],
@@ -442,9 +456,9 @@ Mit der Templating Engine kann man sowohl HTML und PDFs generieren
   ],
   [
     - Eigene Satz-Engine, *kein Browser*
-    - Daten als *CBOR*: virtuelle Datei pro Render, Pfad via `sys.inputs`
+    - Daten als *CBOR* oder *JSON*: virtuelle Datei pro Render, Pfad via CLI Parameter
     - Schreibt *PDF/A-3b nativ* (`pdfStandards: ["a3b"]`) – das XML hängt die geteilte Pipeline an
-    - Compiler gibt auch *HTML* aus
+    - Compiler gibt auch *HTML* aus (experimental)
   ],
 )
 
@@ -526,14 +540,17 @@ Mit der Templating Engine kann man sowohl HTML und PDFs generieren
       table.cell(colspan: 3, text(size: 0.85em)[*HTML*]),
       [p50], [*0,02 ms*], [3,8 ms],
       [Durchsatz], [*\~44.000 /s*], [\~270 /s],
-      [Docker-Image], [\~900 MB #text(size: 0.8em)[(v. a. Chrome)]], [ohne Chrome],
     )
   ],
 )
 
 #align(
-  center,
-)[#sym.arrow PDF: Engine *\~13$times$*, Ende-zu-Ende *\~3$times$ schneller*, *\~⅓ der Größe*. HTML: Kita ist reine String-Konkatenation.]
+  left,
+)[
+  #sym.arrow *HTML*: Kita ist *deutlich* schnelelr.
+  
+  #sym.arrow *PDF*: Engine *\~13$times$*, Ende-zu-Ende *\~3$times$ schneller*, *\~⅓ der Größe*.
+]
 
 // ---------------------------------------------------------------------------
 = Fazit
