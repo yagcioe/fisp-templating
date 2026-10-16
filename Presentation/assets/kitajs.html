@@ -1,0 +1,17 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"/><title>Invoice RE-2026-001</title><style>
+          @page { size: A4; margin: 20mm 20mm 12mm; }
+          body { font-family: serif; font-size: 10pt; margin: 0; padding-bottom: 25mm; }
+          .sender { font-size: 7pt; }
+          .head { display: flex; justify-content: space-between; gap: 2em; }
+          .info th { text-align: left; font-weight: normal; padding-right: 1.5em; }
+          table.items { width: 100%; border-collapse: collapse; }
+          table.items th { border-bottom: 0.7pt solid #000; }
+          table.items td { border-bottom: 0.3pt solid #aaa; }
+          table.items th, table.items td { padding: 4px 6px; text-align: right; }
+          table.items .desc { text-align: left; }
+          table.totals { margin-left: auto; }
+          table.totals td { text-align: right; padding: 2px 6px; }
+          table.totals tr.total td { border-top: 0.7pt solid #000; font-weight: bold; }
+          footer { position: fixed; bottom: 0; left: 0; right: 0; border-top: 0.3pt solid #999; padding-top: 0.5em;
+                   display: grid; grid-template-columns: repeat(3, 1fr); gap: 1em; font-size: 7.5pt; color: #505050; }
+        </style></head><body><div class="sender">Muster Software GmbH · Hauptstraße 1 · 10115 Berlin</div><div class="head"><p><span>Jane Doe Consulting</span><br/><span>Marienplatz 8</span><br/><span>80331 München</span><br/><span>DE</span></p><table class="info"><tr><th>Invoice no.</th><td>RE-2026-001</td></tr><tr><th>Invoice date</th><td>15.10.2026</td></tr><tr><th>Delivery date</th><td>30.09.2026</td></tr><tr><th>Your reference</th><td>PO-4711</td></tr><tr><th>Due date</th><td>29.10.2026</td></tr></table></div><h1>Invoice RE-2026-001</h1><table class="items"><thead><tr><th>Pos.</th><th class="desc">Description</th><th>Qty</th><th>Unit price</th><th>VAT</th><th>Net amount</th></tr></thead><tbody><tr><td>1</td><td class="desc">Consulting</td><td>10 h</td><td>120.00 EUR</td><td>19 %</td><td>1200.00 EUR</td></tr><tr><td>2</td><td class="desc">Hosting &lt;monthly></td><td>1 mo</td><td>49.90 EUR</td><td>19 %</td><td>49.90 EUR</td></tr><tr><td>3</td><td class="desc">Support &amp; Maintenance</td><td>3 h</td><td>80.00 EUR</td><td>19 %</td><td>240.00 EUR</td></tr><tr><td>4</td><td class="desc">Handbook (print)</td><td>2 pcs</td><td>39.90 EUR</td><td>7 %</td><td>79.80 EUR</td></tr></tbody></table><table class="totals"><tr><td>Net total</td><td>1569.70 EUR</td></tr><tr><td>VAT 19 % on 1489.90 EUR</td><td>283.08 EUR</td></tr><tr><td>VAT 7 % on 79.80 EUR</td><td>5.59 EUR</td></tr><tr class="total"><td>Total</td><td>1858.37 EUR</td></tr></table><p><span>Payable within 14 days without deduction.</span><br/><span>Please transfer 1858.37 EUR to IBAN DE02120300000000202051 (BIC BYLADEM1001) quoting RE-2026-001.</span></p><p><em>Thank you for your business!</em></p><footer><div><span>Muster Software GmbH</span><br/><span>Hauptstraße 1</span><br/><span>10115 Berlin</span><br/><span>DE</span></div><div>VAT ID: <span>DE123456789</span><br/>Tax no.: <span>30/123/45678</span><br/><span>billing@muster-software.example</span></div><div>IBAN: <span>DE02120300000000202051</span><br/>BIC: <span>BYLADEM1001</span><br/><span>Muster Software GmbH</span></div></footer></body></html>
