@@ -1,10 +1,9 @@
-import type { CalculatedInvoice, Party } from "../../models/dto/types.ts";
+import type { CalculatedInvoice, Party } from "../../../models/dto/types.ts";
 
 const money = (v: number, currency: string) => `${v.toFixed(2)} ${currency}`;
 const pct = (v: number) => `${v} %`;
 const fmtDate = (iso?: string) => (iso ? iso.split("-").reverse().join(".") : undefined);
 
-// `safe` makes Kita escape user-provided strings (XSS protection).
 function Address({ party }: { party: Party }) {
   const a = party.address;
   return (

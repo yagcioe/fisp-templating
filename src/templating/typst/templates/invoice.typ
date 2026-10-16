@@ -1,8 +1,9 @@
 // Inputs arrive via `sys.inputs`:
-//   data – the calculated invoice (CalculatedInvoice from src/models/dto/types.ts) as JSON
-//   xml  – the matching CII document, embedded as factur-x.xml (ZUGFeRD)
-#let inv = json(bytes(sys.inputs.at("data", default: "{}")))
-#let xml = sys.inputs.at("xml", default: none)
+//   data – path of a virtual file with the calculated invoice (CalculatedInvoice
+//          from src/models/dto/types.ts) as CBOR
+// For PDF, factur-x.xml and the final metadata are added afterwards by the
+// shared ZUGFeRD pipeline (src/zugferd/index.ts, @e-invoice-eu/core).
+#let inv = cbor(sys.inputs.data)
 
 #let opt(dict, key) = dict.at(key, default: none)
 #let fmt-date(iso) = if iso == none { none } else {
@@ -26,10 +27,9 @@
   [#a.postcode #a.city \ #a.countryCode]
 }
 
-// Document metadata: typst writes it into the PDF Info dictionary and XMP as
-// is (only the Factur-X XMP fields are added afterwards). PDF/A-3 requires a
-// date when files are attached and typst in WASM has no clock, so the issue
-// date is used.
+// Document metadata for HTML and the intermediate PDF (the ZUGFeRD pipeline
+// rewrites it in the final PDF). typst in WASM has no clock, so the issue date
+// is used as document date.
 #let (year, month, day) = inv.issueDate.split("-").map(int)
 #set document(
   title: inv.title,
@@ -63,18 +63,6 @@
     )
   },
 )
-
-// The XML is what makes this a ZUGFeRD / Factur-X invoice. PDF/A-3 metadata
-// (AF relationship, XMP) is added afterwards in src/zugferd/pdfa.ts.
-#if xml != none {
-  pdf.attach(
-    "factur-x.xml",
-    bytes(xml),
-    relationship: "alternative",
-    mime-type: "text/xml",
-    description: "Factur-X/ZUGFeRD invoice data",
-  )
-}
 
 #{
   let s = inv.seller.address

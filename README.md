@@ -15,11 +15,7 @@ src/
   tsx/kitajs.tsx       @kitajs/html TSX → HTML (→ PDF via headless Chromium / Puppeteer)
   typst/typst-wasm.ts  typst-wasm – .typ template → PDF/A-3b or HTML (WASM, worker thread)
   typst/templates/     the typst invoice template
-  zugferd/index.ts     shared pipeline: XML → engine PDF → PDF/A-3b finishing
-  zugferd/cii.ts       CII XML (factur-x.xml) generator
-  zugferd/pdfa.ts      PDF/A-3b + Factur-X XMP finishing step (pdf-lib)
-  zugferd/xml.ts       XML escaping shared by the CII and XMP builders
-  zugferd/sRGB-v4.icc  compact sRGB ICC profile (CC0) for the PDF/A output intent
+  zugferd/index.ts     shared pipeline: engine PDF → @e-invoice-eu/core (CII XML + PDF/A-3b)
   engines.ts           registers both engines
   app.ts               Fastify app: routes + OpenAPI (swagger) setup
   server.ts            entry point: warms up engines, starts the server
@@ -117,25 +113,28 @@ descriptions.
 
 ## How the ZUGFeRD PDF is built
 
-1. `buildCiiXml()` turns the calculated invoice into a UN/CEFACT Cross Industry
-   Invoice with guideline `urn:cen.eu:en16931:2017`.
-2. The engine lays out the visual PDF:
-   - **typst** gets the invoice JSON and the XML via `sys.inputs` and embeds the
-     XML itself with `pdf.attach("factur-x.xml", …, relationship: "alternative")`.
+The e-invoice part is done by [`@e-invoice-eu/core`](https://www.npmjs.com/package/@e-invoice-eu/core),
+the library behind the [`@e-invoice-eu/cli`](https://www.npmjs.com/package/@e-invoice-eu/cli)
+command line tool, used in-process (no child process per render).
+
+1. The engine lays out the visual PDF:
+   - **typst** gets the calculated invoice as CBOR and compiles with
+     `pdfStandards: ["a3b"]`, so typst already enforces the PDF/A rules it
+     controls (embedded fonts etc.). `sys.inputs` only carries strings, so the
+     CBOR is written to a virtual file per render (`inputs/<uuid>.cbor`, removed
+     afterwards) and the template reads it with `cbor(sys.inputs.data)`.
    - **kitajs** renders HTML with Kita and prints it with headless Chromium
      (`page.pdf()`); the HTML is only an intermediate and never returned.
-3. Finishing (pdf-lib), depending on what the engine produced:
-   - **typst** already writes PDF/A-3b (`pdfStandards: ["a3b"]`) with the XML
-     attached and all document metadata from the template's `set document`
-     (title, author, description, date). `addFacturXMetadata()` only injects the
-     Factur-X XMP properties (`fx:DocumentType`, `DocumentFileName`, `Version`,
-     `ConformanceLevel` EN 16931) and their extension-schema declaration, which
-     typst cannot express; everything else stays untouched.
-   - **kitajs** (Chromium) gets the full `finalizeFacturX()` conversion: embeds
-     `factur-x.xml`, sets `/AFRelationship /Alternative` and the catalog `/AF`
-     array, adds an sRGB output intent (bundled ICC profile), ensures a trailer
-     `/ID` and writes XMP with `pdfaid` 3B plus the Factur-X fields and a
-     matching Info dictionary.
+2. `toEInvoice()` maps the calculated invoice onto the library's input format
+   (UBL-style JSON, EN 16931 syntax binding; all numbers as strings, every
+   amount with its `@currencyID`).
+3. `InvoiceService.generate()` with format `Factur-X-EN16931` validates that
+   JSON against the library's schema, converts it to a UN/CEFACT Cross
+   Industry Invoice (guideline `urn:cen.eu:en16931:2017`), attaches it as
+   `factur-x.xml` (`/AFRelationship /Alternative`, catalog `/AF`), adds an sRGB
+   output intent and a trailer `/ID`, and writes the PDF/A-3b + Factur-X XMP
+   metadata and Info dictionary (title, author, subject and creator are passed
+   in as `customMetadata`).
 
 Both engines' output is verified with the [Mustang](https://www.mustangproject.org/)
 validator (veraPDF PDF/A-3b + EN 16931 schematron):
@@ -149,8 +148,8 @@ java -jar Mustang-CLI.jar --action validate --source out.pdf
 - **typst-wasm** runs the typst compiler in a worker thread. The WASM modules
   and fonts (Libertinus Serif from `@typst-wasm/fonts`) are loaded from
   `node_modules` in `init()`, so no network access is needed. In WASM typst has
-  no clock, so the template sets the document date from the issue date (PDF/A
-  requires one). That date ends up as the PDF's creation date.
+  no clock, so the template sets the document date from the issue date; the
+  final PDF's dates are set by `@e-invoice-eu/core` at finishing time.
 - **Kita** is plain string concatenation (user strings escaped via the `safe`
   attribute); the PDF layout is done by Chromium, launched once in `init()`.
   Puppeteer downloads its own Chrome in its `npm install` postinstall script
@@ -158,5 +157,8 @@ java -jar Mustang-CLI.jar --action validate --source out.pdf
   run `npx puppeteer browsers install chrome` once. Each render opens a page, so
   renders run concurrently, but it is slower and the PDFs are bigger (system
   fonts embedded) than typst's.
+- `@e-invoice-eu/core` compiles its JSON schema (Ajv) on every `generate()`
+  call, which costs roughly 60–80 ms per PDF render for both engines and makes
+  up most of typst's PDF time.
 - Layout differences come from the layout engines: CSS print layout in Chromium
   vs. typst's own typesetting (fonts: system serif vs. Libertinus Serif).

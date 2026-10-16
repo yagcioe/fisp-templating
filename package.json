@@ -3,20 +3,23 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx src/server.ts",
-    "start:prod": "node dist/server.js",
-    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/main.ts",
+    "start:prod": "node dist/main.js",
+    "dev": "tsx watch src/main.ts",
     "typecheck": "tsc -p .",
     "build": "tsc -p tsconfig.build.json && node -e \"require('node:fs').cpSync('src', 'dist', { recursive: true, filter: (f) => !/\\.tsx?$/.test(f) })\""
   },
   "dependencies": {
+    "@e-invoice-eu/core": "^3.4.1",
+    "@fastify/awilix": "^8.3.1",
     "@fastify/swagger": "^9.9.2",
     "@fastify/swagger-ui": "^6.1.2",
     "@kitajs/html": "^4.2.13",
     "@typst-wasm/fonts": "^1.0.0",
+    "awilix": "^13.0.5",
+    "cborg": "^6.1.3",
     "fastify": "^5.12.7",
     "fastify-type-provider-zod": "^7.0.0",
-    "pdf-lib": "^1.17.1",
     "puppeteer": "^25.14.0",
     "typst-wasm": "^1.0.0",
     "zod": "^4.6.7"

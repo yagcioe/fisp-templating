@@ -1,13 +1,12 @@
+import { encode } from "cborg";
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createTypstCompiler, type TypstCompiler } from "typst-wasm";
 import { createWorkerThread } from "typst-wasm/worker/node";
-import { calculateInvoice, type TemplateEngine } from "../core.ts";
-import type { InvoiceData } from "../models/dto/types.ts";
-import { renderZugferdPdf } from "../zugferd/index.ts";
+import type { TemplateEngine } from "../template.service.ts";
+import type { TypstTemplateDescriptor } from "./typst-template-descriptor.ts";
 
 const MAIN = "main.typ";
-const template = await readFile(new URL("./templates/invoice.typ", import.meta.url), "utf8");
-
 /** Reads a file shipped in a package (WASM modules, fonts) via its export path. */
 const packageFile = (specifier: string) => readFile(new URL(import.meta.resolve(specifier)));
 
@@ -27,19 +26,17 @@ const createCompiler = () =>
 
 /**
  * Renders the invoice with typst (typst-wasm, compiled in a worker thread).
- * The template gets the calculated invoice as JSON and, for PDF, the CII XML
- * via `sys.inputs`; it embeds the XML itself with `pdf.attach` and sets the
- * document metadata. typst writes PDF/A-3b natively; the shared pipeline only
- * adds the Factur-X XMP fields, which typst cannot express.
+ * The template gets the calculated invoice as CBOR via `sys.inputs`. For PDF,
+ * the shared pipeline (@e-invoice-eu/core) attaches the CII XML and writes the
+ * Factur-X metadata.
  */
 export class TypstTemplateEngine implements TemplateEngine {
-  readonly name = "typst";
   #compiler: TypstCompiler | undefined;
 
   async init() {
     const compiler = await createCompiler();
     await compiler.addFonts(...FONTS.map((font) => packageFile(`@typst-wasm/fonts/${font}`)));
-    await compiler.addSource(MAIN, template);
+
     this.#compiler = compiler;
   }
 
@@ -48,26 +45,28 @@ export class TypstTemplateEngine implements TemplateEngine {
     return this.#compiler;
   }
 
-  render(data: InvoiceData, format: "pdf"): Promise<Uint8Array>;
-  render(data: InvoiceData, format: "html"): Promise<string>;
-  async render(data: InvoiceData, format: "pdf" | "html"): Promise<Uint8Array | string> {
-    const invoice = calculateInvoice(data);
-    const json = JSON.stringify(invoice);
+  render<TData>(descriptor: TypstTemplateDescriptor<TData>, format: "pdf"): Promise<Uint8Array>;
+  render<TData>(descriptor: TypstTemplateDescriptor<TData>, format: "html"): Promise<string>;
+  async render<TData>(descriptor: TypstTemplateDescriptor<TData>, format: "pdf" | "html"): Promise<Uint8Array | string> {
 
-    if (format === "html") {
-      return (await this.#ready.compile({ format: "html", main: MAIN, inputs: { data: json } })).output;
+    const cbor = encode(descriptor.data, { ignoreUndefinedProperties: true });
+    await this.#ready.addSource(MAIN, await descriptor.getTemplate());
+    const path = `inputs/${randomUUID()}.cbor`;
+    await this.#ready.addFile(path, cbor);
+    try {
+      if (format === "html") {
+        return (await this.#ready.compile(
+          { format: "html", main: MAIN, inputs: { data: path } }
+        )).output;
+      }
+
+      return (await this.#ready.compile(
+        { format: "pdf", main: MAIN, inputs: { data: path }, pdfStandards: ["a3b"], }
+      )).output;
     }
-    // typst writes PDF/A-3b, the attachment and all document metadata itself (see
-    // the template); only the Factur-X XMP fields are added afterwards.
-    return renderZugferdPdf(invoice, { kind: "native" }, async (xml) => {
-      const result = await this.#ready.compile({
-        format: "pdf",
-        main: MAIN,
-        inputs: { data: json, xml },
-        pdfStandards: ["a3b"],
-      });
-      return result.output;
-    });
+    finally {
+      await this.#ready.clearFiles()
+    }
   }
 
   async close() {
