@@ -469,12 +469,12 @@ Mit diser Templating Engine kann man sowohl HTML und PDFs generieren
   gutter: 1.5em,
   align: center,
   [
-    #box(stroke: 0.5pt + luma(180), image("assets/kita.pdf", height: 80%))
+    #box(stroke: 0.5pt + luma(180), image("./assets/kitajs.pdf", height: 80%))
     #v(-0.3em)
     *Kita + Chromium*
   ],
   [
-    #box(stroke: 0.5pt + luma(180), image("assets/typst.pdf", height: 80%))
+    #box(stroke: 0.5pt + luma(180), image("./assets/typst.pdf", height: 80%))
     #v(-0.3em)
     *typst*
   ],
@@ -579,5 +579,6 @@ Mit diser Templating Engine kann man sowohl HTML und PDFs generieren
 #focus-slide[
   Den Code findet Ihr auf meinem Github:
   #qr-code("https://github.com/yagcioe/fisp-templating", background: komuno, color: white)
+  #link("https://github.com/yagcioe/fisp-templating")[https://github.com/yagcioe/fisp-templating]
 ]
 
